@@ -1,6 +1,7 @@
 package com.digisafe.core.ai
 
 import android.content.Context
+import android.util.Log
 
 class RiskEngine(context: Context) {
 
@@ -25,6 +26,8 @@ class RiskEngine(context: Context) {
             totalScore >= 7f -> "MEDIUM"
             else -> "LOW"
         }
+
+        Log.d("DigiSafe-AI", "RiskEngine - Final Risk Level: $riskLevel (Emotion: $emotionScore, Authority: $authorityScore)")
 
         return RiskData(
             phoneNumber = phoneNumber,

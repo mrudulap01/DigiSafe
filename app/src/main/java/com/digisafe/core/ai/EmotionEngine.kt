@@ -1,6 +1,7 @@
 package com.digisafe.core.ai
 
 import android.content.Context
+import android.util.Log
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.nio.MappedByteBuffer
@@ -34,7 +35,9 @@ class EmotionEngine(private val context: Context, private val mfccProcessor: MFC
 
         try {
             interpreter?.run(input, output)
-            return output[0][0]
+            val score = output[0][0]
+            Log.d("DigiSafe-AI", "EmotionEngine - Analyzed audio score: $score")
+            return score
         } catch (e: Exception) {
             e.printStackTrace()
             // Fallback random mock value if inference fails (e.g., model is missing)

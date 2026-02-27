@@ -1,5 +1,7 @@
 package com.digisafe.core.ai
 
+import android.util.Log
+
 class AuthorityDetector {
 
     // Mock local keyword map
@@ -22,6 +24,7 @@ class AuthorityDetector {
             }
         }
 
+        Log.d("DigiSafe-AI", "AuthorityDetector - Calculated authority score: $score")
         return score
     }
 }
