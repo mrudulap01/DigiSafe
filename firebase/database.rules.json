@@ -1,0 +1,89 @@
+// 🔥 DigiSafe: Production-Hardened Firebase Realtime Database Rules
+// ⚖️ ENFORCEMENT: Atomic transitions (PENDING only), restricted Guardian RBAC, and strict type/structure validation.
+// ⚠️ WARNING: These rules must be deployed via Firebase CLI to maintain consistency. 
+// 🚫 NOTICE: Manual edits in the Firebase Console are discouraged.
+{
+    "rules": {
+        "users": {
+            "$uid": {
+                // Read Access: Shared between the Primary User and their verified Guardians
+                ".read": "auth != null && (auth.uid == $uid || root.child('users/' + $uid + '/guardians_uids').hasChild(auth.uid))",
+                // Block full node overwrites by forcing scoped permissions on children
+                ".write": "false",
+                "approvals": {
+                    "$eventId": {
+                        // Guardians cannot overwrite the entire event node, only specific children.
+                        ".write": "false",
+                        // 1. Strict Structural Enforcement
+                        // - Requires 'state' field
+                        // - Limits child count to 4 (state, timestamp, resolvedAt, resolvedBy)
+                        // - Enforces types for all possible fields at the root level
+                        ".validate": "newData.hasChild('state') && 
+                          newData.getChildrenCount() <= 4 &&
+                          newData.child('state').isString() &&
+                          (!newData.hasChild('timestamp') || newData.child('timestamp').isNumber()) &&
+                          (!newData.hasChild('resolvedAt') || newData.child('resolvedAt').isNumber()) &&
+                          (!newData.hasChild('resolvedBy') || newData.child('resolvedBy').isString())","state": {
+                            ".write": "auth != null && (
+                            // A. Guardian: Allowed to move PENDING -> APPROVED | DENIED
+                (root.child('users/' + $uid + '/guardians_uids').hasChild(auth.uid) && 
+                 data.val() == 'PENDING' && 
+                 (newData.val() == 'APPROVED' || newData.val() == 'DENIED')) ||
+                
+                // B. Owner: Allowed to move PENDING -> TIMEOUT
+                (auth.uid == $uid && 
+                 data.val() == 'PENDING' && 
+                 newData.val() == 'TIMEOUT')
+              )",
+                            // Enum-style validation for state values
+                            ".validate": "newData.val() == 'APPROVED' || newData.val() == 'DENIED' || newData.val() == 'TIMEOUT' || newData.val() == 'PENDING'"
+                        },
+                        // 2. Metadata: Writeable ONLY by the Primary User's device
+                        "timestamp": {
+                            ".write": "auth != null && auth.uid == $uid",
+                            ".validate": "newData.isNumber() && newData.val() <= now"
+                        },
+                        "resolvedAt": {
+                            ".write": "auth != null && auth.uid == $uid"
+                        },
+                        "resolvedBy": {
+                            ".write": "auth != null && auth.uid == $uid"
+                        },
+                        // 3. Whitelist Enforcement: Block any keys not explicitly defined above
+                        "$other": {
+                            ".validate": "false"
+                        }
+                    }
+                },
+                // Module-specific protections (Owner Only)
+                "alerts": {
+                    "$id": {
+                        ".write": "auth != null && auth.uid == $uid"
+                    }
+                },
+                "transactions": {
+                    "$id": {
+                        ".write": "auth != null && auth.uid == $uid"
+                    }
+                },
+                "evidence": {
+                    "$id": {
+                        ".write": "auth != null && auth.uid == $uid"
+                    }
+                },
+                "guardians": {
+                    ".write": "auth != null && auth.uid == $uid"
+                },
+                "guardians_uids": {
+                    ".write": "auth != null && auth.uid == $uid"
+                },
+                "profile": {
+                    "fcmToken": {
+                        ".write": "auth != null && auth.uid == $uid",
+                        ".validate": "newData.isString()"
+                    }
+                }
+            }
+        }
+    }
+}
