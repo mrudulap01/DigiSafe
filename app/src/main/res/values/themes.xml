@@ -1,16 +1,71 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.DigiSafeCore" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorPrimaryVariant">@color/purple_700</item>
-        <item name="colorOnPrimary">@color/white</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/teal_200</item>
-        <item name="colorSecondaryVariant">@color/teal_700</item>
-        <item name="colorOnSecondary">@color/black</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryVariant</item>
-        <!-- Customize your theme here. -->
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- DigiSafe Dark Theme -->
+    <style name="Theme.DigiSafe" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_variant</item>
+        <item name="colorOnPrimary">@color/on_primary</item>
+        <item name="colorSecondary">@color/secondary</item>
+        <item name="colorOnSecondary">@color/on_secondary</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/on_surface</item>
+        <item name="android:statusBarColor">@color/status_bar</item>
+        <item name="android:navigationBarColor">@color/background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!-- Button Styles -->
+    <style name="DigiSafe.Button" parent="Widget.Material3.Button">
+        <item name="android:minHeight">@dimen/btn_height</item>
+        <item name="android:textSize">@dimen/btn_text_size</item>
+        <item name="android:textStyle">bold</item>
+        <item name="cornerRadius">@dimen/btn_corner_radius</item>
+    </style>
+
+    <style name="DigiSafe.Button.Danger">
+        <item name="backgroundTint">@color/state_high_risk</item>
+        <item name="android:textColor">@color/text_on_dark</item>
+    </style>
+
+    <style name="DigiSafe.Button.Safe">
+        <item name="backgroundTint">@color/state_safe</item>
+        <item name="android:textColor">@color/text_on_dark</item>
+    </style>
+
+    <style name="DigiSafe.Button.Warning">
+        <item name="backgroundTint">@color/state_warning</item>
+        <item name="android:textColor">@color/text_on_dark</item>
+    </style>
+
+    <style name="DigiSafe.Button.Guardian">
+        <item name="backgroundTint">@color/overlay_guardian_btn</item>
+        <item name="android:textColor">@color/text_on_dark</item>
+    </style>
+
+    <!-- Card Style -->
+    <style name="DigiSafe.Card" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardCornerRadius">@dimen/card_corner_radius</item>
+        <item name="cardElevation">@dimen/card_elevation</item>
+        <item name="cardBackgroundColor">@color/card_background</item>
+        <item name="contentPadding">@dimen/card_padding</item>
+    </style>
+
+    <!-- Text Styles -->
+    <style name="DigiSafe.Text.Title">
+        <item name="android:textSize">@dimen/text_title</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+
+    <style name="DigiSafe.Text.Heading">
+        <item name="android:textSize">@dimen/text_heading</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+
+    <style name="DigiSafe.Text.Body">
+        <item name="android:textSize">@dimen/text_body</item>
+        <item name="android:textColor">@color/text_secondary</item>
     </style>
 </resources>

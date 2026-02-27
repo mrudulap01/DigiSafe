@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#E6000000">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:padding="@dimen/spacing_xl"
+        android:gravity="center">
+
+        <!-- Shield Icon -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🛡️"
+            android:textSize="72sp"
+            android:layout_marginBottom="@dimen/spacing_lg" />
+
+        <!-- Title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/banking_alert_title"
+            android:textSize="@dimen/text_overlay_title"
+            android:textStyle="bold"
+            android:textColor="@color/state_warning_light"
+            android:gravity="center"
+            android:layout_marginBottom="@dimen/spacing_md" />
+
+        <!-- Message -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/banking_alert_message"
+            android:textSize="@dimen/text_overlay_body"
+            android:textColor="@color/text_on_dark"
+            android:gravity="center"
+            android:lineSpacingExtra="4dp"
+            android:layout_marginBottom="@dimen/spacing_xl" />
+
+        <!-- Block Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBlockTransaction"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/btn_height_large"
+            android:text="@string/banking_btn_block"
+            android:textSize="@dimen/btn_text_size"
+            android:textStyle="bold"
+            app:cornerRadius="@dimen/btn_corner_radius"
+            app:backgroundTint="@color/overlay_panic_btn"
+            android:layout_marginBottom="@dimen/spacing_md" />
+
+        <!-- Confirm Safe Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAllowTransaction"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/btn_height"
+            android:text="@string/banking_btn_allow"
+            android:textSize="@dimen/btn_text_size"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            app:cornerRadius="@dimen/btn_corner_radius"
+            app:strokeColor="@color/state_warning_light"
+            android:textColor="@color/state_warning_light" />
+
+    </LinearLayout>
+</FrameLayout>

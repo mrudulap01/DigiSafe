@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/state_high_risk_dark">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="@dimen/spacing_lg"
+            android:gravity="center_horizontal">
+
+            <!-- Pulsing Warning Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="@color/state_high_risk"
+                android:padding="@dimen/spacing_lg"
+                android:layout_marginBottom="@dimen/spacing_lg">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⚠️"
+                    android:textSize="72sp"
+                    android:layout_marginBottom="@dimen/spacing_sm" />
+
+                <TextView
+                    android:id="@+id/tvOverlayTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/overlay_title"
+                    android:textSize="@dimen/text_overlay_title"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_on_dark"
+                    android:gravity="center" />
+
+                <TextView
+                    android:id="@+id/tvRiskScoreOverlay"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Risk Score: 85%"
+                    android:textSize="@dimen/text_body"
+                    android:textColor="@color/state_high_risk_light"
+                    android:layout_marginTop="@dimen/spacing_xs" />
+
+            </LinearLayout>
+
+            <!-- Call Info -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@color/state_high_risk_bg"
+                android:padding="@dimen/spacing_md"
+                android:layout_marginBottom="@dimen/spacing_md">
+
+                <TextView
+                    android:id="@+id/tvCallerInfo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📞 Caller: Unknown Number"
+                    android:textSize="@dimen/text_body"
+                    android:textColor="@color/text_on_dark"
+                    android:layout_marginBottom="@dimen/spacing_xs" />
+
+                <TextView
+                    android:id="@+id/tvCallDuration"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⏱️ Duration: 3:42"
+                    android:textSize="@dimen/text_body"
+                    android:textColor="@color/text_on_dark" />
+            </LinearLayout>
+
+            <!-- Reality Checklist -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/overlay_subtitle"
+                android:textSize="@dimen/text_overlay_body"
+                android:textStyle="bold"
+                android:textColor="@color/text_on_dark"
+                android:layout_marginBottom="@dimen/spacing_md" />
+
+            <CheckBox
+                android:id="@+id/cbMoney"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/checklist_money"
+                android:textSize="@dimen/text_overlay_body"
+                android:textColor="@color/text_on_dark"
+                android:buttonTint="@color/state_high_risk_light"
+                android:layout_marginBottom="@dimen/spacing_sm"
+                android:minHeight="56dp"
+                android:padding="@dimen/spacing_sm" />
+
+            <CheckBox
+                android:id="@+id/cbArrest"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/checklist_arrest"
+                android:textSize="@dimen/text_overlay_body"
+                android:textColor="@color/text_on_dark"
+                android:buttonTint="@color/state_high_risk_light"
+                android:layout_marginBottom="@dimen/spacing_sm"
+                android:minHeight="56dp"
+                android:padding="@dimen/spacing_sm" />
+
+            <CheckBox
+                android:id="@+id/cbIsolate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/checklist_isolate"
+                android:textSize="@dimen/text_overlay_body"
+                android:textColor="@color/text_on_dark"
+                android:buttonTint="@color/state_high_risk_light"
+                android:layout_marginBottom="@dimen/spacing_lg"
+                android:minHeight="56dp"
+                android:padding="@dimen/spacing_sm" />
+
+            <!-- Action Buttons -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDisconnect"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/btn_height_large"
+                android:text="@string/btn_disconnect"
+                android:textSize="@dimen/btn_text_size"
+                android:textStyle="bold"
+                app:cornerRadius="@dimen/btn_corner_radius"
+                app:backgroundTint="@color/overlay_panic_btn"
+                android:layout_marginBottom="@dimen/spacing_md" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCallGuardian"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/btn_height_large"
+                android:text="@string/btn_call_guardian"
+                android:textSize="@dimen/btn_text_size"
+                android:textStyle="bold"
+                app:cornerRadius="@dimen/btn_corner_radius"
+                app:backgroundTint="@color/overlay_guardian_btn"
+                android:layout_marginBottom="@dimen/spacing_md" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSafe"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/btn_height_large"
+                android:text="@string/btn_safe"
+                android:textSize="@dimen/btn_text_size"
+                android:textStyle="bold"
+                app:cornerRadius="@dimen/btn_corner_radius"
+                app:backgroundTint="@color/overlay_dismiss_btn"
+                android:layout_marginBottom="@dimen/spacing_xl" />
+
+            <!-- Panic Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPanic"
+                android:layout_width="@dimen/panic_btn_size"
+                android:layout_height="@dimen/panic_btn_size"
+                android:text="@string/btn_panic"
+                android:textSize="@dimen/panic_btn_text_size"
+                android:textStyle="bold"
+                app:backgroundTint="@color/overlay_panic_btn"
+                app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+                app:cornerRadius="60dp"
+                android:layout_gravity="center"
+                android:layout_marginBottom="@dimen/spacing_xl" />
+
+        </LinearLayout>
+    </ScrollView>
+</FrameLayout>

@@ -1,3 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DigiSafeCore</string>
+    <!-- App -->
+    <string name="app_name">DigiSafe</string>
+    <string name="setup_title">Setup Protection</string>
+
+    <!-- Dashboard -->
+    <string name="protection_status">Protection Status</string>
+    <string name="status_safe">✅ SAFE — Protection Active</string>
+    <string name="status_warning">⚠️ WARNING — Suspicious Activity</string>
+    <string name="status_high_risk">🚨 HIGH RISK — Immediate Action Required</string>
+    <string name="status_monitoring">Monitoring your calls in real-time</string>
+    <string name="enable_protection">Enable Protection</string>
+    <string name="disable_protection">Disable Protection</string>
+    <string name="protection_active">Live Protection Mode is ON</string>
+    <string name="protection_inactive">Protection is OFF</string>
+
+    <!-- Guardian -->
+    <string name="guardian_section">Guardian Contact</string>
+    <string name="guardian_name_hint">Guardian Name</string>
+    <string name="guardian_phone_hint">Guardian Phone Number</string>
+    <string name="guardian_save">Save Guardian</string>
+    <string name="guardian_saved">Guardian contact saved</string>
+    <string name="guardian_not_set">No guardian contact set</string>
+    <string name="guardian_set">Guardian: %1$s</string>
+
+    <!-- Overlay -->
+    <string name="overlay_title">⚠️ POSSIBLE SCAM DETECTED</string>
+    <string name="overlay_subtitle">This call shows signs of a scam. Please verify:</string>
+    <string name="checklist_money">Are they asking for money?</string>
+    <string name="checklist_arrest">Are they threatening arrest?</string>
+    <string name="checklist_isolate">Are they isolating you from family?</string>
+    <string name="btn_disconnect">🔴 Disconnect Call</string>
+    <string name="btn_call_guardian">🟢 Call Guardian</string>
+    <string name="btn_safe">🟡 I Am Safe</string>
+    <string name="btn_panic">🆘 EMERGENCY</string>
+    <string name="risk_score_display">Risk Score: %1$.0f%%</string>
+
+    <!-- Banking Shield -->
+    <string name="banking_alert_title">🛡️ Transaction Protected</string>
+    <string name="banking_alert_message">This transaction may be fraud.\nPlease contact your guardian before proceeding.</string>
+    <string name="banking_btn_block">Block Transaction</string>
+    <string name="banking_btn_allow">I Confirm This Is Safe</string>
+
+    <!-- Setup / Permissions -->
+    <string name="setup_welcome">Welcome to DigiSafe</string>
+    <string name="setup_description">DigiSafe protects you from scam calls using on-device AI.\nNo audio ever leaves your phone.</string>
+    <string name="setup_permissions_title">Required Permissions</string>
+    <string name="setup_phone">📞 Phone Access — Detect incoming calls</string>
+    <string name="setup_sms">💬 SMS Access — Alert your guardian</string>
+    <string name="setup_overlay">🪟 Overlay — Show safety warnings</string>
+    <string name="setup_accessibility">♿ Accessibility — Detect banking apps</string>
+    <string name="setup_audio">🎤 Microphone — On-device AI analysis</string>
+    <string name="setup_contacts">📇 Contacts — Identify known callers</string>
+    <string name="setup_grant_permissions">Grant Permissions</string>
+    <string name="setup_continue">Continue</string>
+    <string name="setup_skip">Skip for now</string>
+
+    <!-- Privacy -->
+    <string name="privacy_title">Your Privacy Matters</string>
+    <string name="privacy_message">🔒 All AI processing happens locally.\n📵 No audio leaves your device.\n🚫 No cloud audio processing.\n✅ Mic indicator always visible.</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_name">DigiSafe Protection</string>
+    <string name="notification_channel_desc">Real-time scam call protection notifications</string>
+    <string name="notification_monitoring">Monitoring calls for your safety</string>
+    <string name="notification_warning">Suspicious call activity detected</string>
+    <string name="notification_high_risk">HIGH RISK — Possible scam detected!</string>
+
+    <!-- Guardian SMS -->
+    <string name="sms_alert">⚠️ DigiSafe Alert: Possible scam detected. Caller: %1$s. Duration: %2$s. Risk Score: %3$.0f%%. Please check on your contact immediately.</string>
+
+    <!-- General -->
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="call_duration">Call Duration: %1$s</string>
+    <string name="caller_number">Caller: %1$s</string>
 </resources>
