@@ -1,4 +1,4 @@
-package com.digisafe.core.ai
+package core.ai
 
-interface AudioChunkListener {
+class AudioChunkListener {
 }

@@ -1,10 +1,10 @@
-package com.digisafe.core.ai
+package core.ai
 
 data class RiskData(
     val phoneNumber: String,
-    val duration: Int,
+    val duration: Long,
     val emotionScore: Float,
-    val authorityScore: Float,
+    val authorityScore: Int,
     val riskLevel: String,
     val timestamp: Long
 )

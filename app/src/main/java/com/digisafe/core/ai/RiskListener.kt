@@ -1,4 +1,4 @@
-package com.digisafe.core.ai
+package core.ai
 
-interface RiskListener {
+class RiskListener {
 }

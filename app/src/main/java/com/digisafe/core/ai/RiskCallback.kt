@@ -1,4 +1,4 @@
-package com.digisafe.core.ai
+package core.ai
 
 interface RiskCallback {
     fun onHighRiskDetected(riskData: RiskData)

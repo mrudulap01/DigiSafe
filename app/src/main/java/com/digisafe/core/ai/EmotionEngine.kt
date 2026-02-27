@@ -1,4 +1,4 @@
-package com.digisafe.core.ai
+package core.ai
 
 import android.content.Context
 import android.util.Log
@@ -7,45 +7,45 @@ import java.io.FileInputStream
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 
-class EmotionEngine(private val context: Context, private val mfccProcessor: MFCCProcessor = MFCCProcessor()) {
 
-    private var interpreter: Interpreter? = null
+class EmotionEngine(private val context: Context) {
+
+    private lateinit var interpreter: Interpreter
 
     init {
         try {
-            interpreter = Interpreter(loadModelFile("emotion_model.tflite"))
+            // Load the model once during initialization
+            val modelBuffer = loadModelFile()
+            interpreter = Interpreter(modelBuffer)
+            Log.d("EmotionEngine", "TFLite model loaded successfully")
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("DigiSafe-AI", "TFLite model loading failed", e)
         }
     }
 
-    private fun loadModelFile(modelPath: String): MappedByteBuffer {
-        val fileDescriptor = context.assets.openFd(modelPath)
+    private fun loadModelFile(): MappedByteBuffer {
+        val fileDescriptor = context.assets.openFd("model.tflite")
         val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
         val fileChannel = inputStream.channel
-        return fileChannel.map(FileChannel.MapMode.READ_ONLY, fileDescriptor.startOffset, fileDescriptor.declaredLength)
+        val startOffset = fileDescriptor.startOffset
+        val declaredLength = fileDescriptor.declaredLength
+        return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
     }
 
-    fun analyzeAudio(filePath: String): Float {
-        // Use MFCCProcessor to convert the PCM audio file to TFLite input feature array
-        val input = mfccProcessor.processAudioToMFCC(filePath)
-        
-        // Mock output float array (e.g., single float representing aggression score)
-        val output = Array(1) { FloatArray(1) }
+    fun analyzeAudio(mfcc: FloatArray): Float {
+        return try {
+            val input = arrayOf(mfcc)
+            val output = Array(1) { FloatArray(1) }
 
-        try {
-            interpreter?.run(input, output)
+            interpreter.run(input, output)
+
             val score = output[0][0]
-            Log.d("DigiSafe-AI", "EmotionEngine - Analyzed audio score: $score")
-            return score
-        } catch (e: Exception) {
-            e.printStackTrace()
-            // Fallback value if inference fails (e.g., model is missing, bad input)
-            return 0.1f
-        }
-    }
+            Log.d("DigiSafe-AI", "Emotion Score: $score")
+            score
 
-    fun close() {
-        interpreter?.close()
+        } catch (e: Exception) {
+            Log.e("DigiSafe-AI", "Inference failed", e)
+            0.1f
+        }
     }
 }

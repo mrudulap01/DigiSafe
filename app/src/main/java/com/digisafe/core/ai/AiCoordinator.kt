@@ -1,13 +1,17 @@
 package core.ai
 
+import android.content.Context
 import android.util.Log
 
 class AiCoordinator(
-    private val emotionEngine: EmotionEngine,
-    private val authorityDetector: AuthorityDetector,
-    private val riskEngine: RiskEngine,
+    private val context: Context,
     private val riskCallback: RiskCallback
 ) {
+
+    private val mfccProcessor = MFCCProcessor()
+    private val emotionEngine = EmotionEngine(context)
+    private val authorityDetector = AuthorityDetector()
+    private val riskEngine = RiskEngine()
 
     fun processAudioChunk(
         filePath: String,
@@ -16,28 +20,27 @@ class AiCoordinator(
         transcript: String?
     ) {
 
-        val emotionScore = emotionEngine.analyzeAudio(filePath)
-        val authorityScore = authorityDetector.calculateAuthorityScore(transcript ?: "")
+        val mfcc = mfccProcessor.processAudio(filePath)
+        val emotionScore = emotionEngine.analyzeAudio(mfcc)
+        val authorityScore = authorityDetector.calculateAuthorityScore(transcript)
 
-        // 🔥 convert Long → Int here
-        val riskResult = riskEngine.calculateRisk(
-            duration.toInt(),
+        val riskLevel = riskEngine.calculateRisk(
+            duration,
             emotionScore,
             authorityScore
         )
-
-        Log.d("DigiSafe-AI", "AiCoordinator - Final Risk Level: ${riskResult.riskLevel}")
 
         val riskData = RiskData(
             phoneNumber = phoneNumber,
             duration = duration,
             emotionScore = emotionScore,
-            authorityScore = authorityScore.toFloat(),
-            riskLevel = riskResult.riskLevel,
+            authorityScore = authorityScore,
+            riskLevel = riskLevel,
             timestamp = System.currentTimeMillis()
         )
 
-        if (riskResult.riskLevel == "HIGH") {
+        if (riskLevel == "HIGH") {
+            Log.d("DigiSafe-AI", "HIGH risk detected. Triggering callback.")
             riskCallback.onHighRiskDetected(riskData)
         }
     }

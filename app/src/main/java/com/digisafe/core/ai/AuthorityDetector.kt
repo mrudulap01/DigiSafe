@@ -1,30 +1,31 @@
-package com.digisafe.core.ai
+package core.ai
 
 import android.util.Log
 
 class AuthorityDetector {
 
-    // Mock local keyword map
-    private val keywordMap: Map<String, Int> = mapOf(
-        "police" to 3,
-        "arrest" to 4,
-        "bank" to 2,
-        "urgent" to 2,
-        "warrant" to 5,
-        "verify" to 1
+    private val keywordMap = mapOf(
+        "police" to 20,
+        "arrest" to 25,
+        "legal action" to 30,
+        "transfer now" to 35,
+        "confidential" to 15,
+        "do not disconnect" to 40
     )
 
-    fun calculateAuthorityScore(transcript: String): Int {
+    fun calculateAuthorityScore(transcript: String?): Int {
+        if (transcript == null) return 0
+
         var score = 0
-        val lowerTranscript = transcript.lowercase()
+        val lowerText = transcript.lowercase()
 
         for ((keyword, weight) in keywordMap) {
-            if (lowerTranscript.contains(keyword)) {
+            if (lowerText.contains(keyword)) {
                 score += weight
             }
         }
 
-        Log.d("DigiSafe-AI", "AuthorityDetector - Calculated authority score: $score")
+        Log.d("DigiSafe-AI", "Authority Score: $score")
         return score
     }
 }
