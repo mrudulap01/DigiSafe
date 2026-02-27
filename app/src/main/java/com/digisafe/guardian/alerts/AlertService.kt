@@ -14,6 +14,7 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.digisafe.guardian.backend.FirebaseManager
 import com.digisafe.guardian.dashboard.GuardianDashboardActivity
+import com.digisafe.guardian.security.DeviceIntegrityManager
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.CoroutineScope
@@ -29,7 +30,8 @@ import kotlin.math.abs
  * 1. Persistent De-duplication: Prevents alert replay even after app restarts/device reboots.
  * 2. Hardware-Backed Cache: Replay IDs are stored in EncryptedSharedPreferences (TEE-backed keys).
  * 3. Temporal Freshness: Rejects any event older than 5 minutes to prevent late injection.
- * 4. Signature Readiness: Architecture supports future ECDSA payload verification.
+ * 4. Runtime Integrity: Blocks all high-risk alerts on compromised (rooted/tompered) devices.
+ * 5. Signature Readiness: Architecture supports future ECDSA payload verification.
  */
 class AlertService : FirebaseMessagingService() {
 
@@ -74,6 +76,12 @@ class AlertService : FirebaseMessagingService() {
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         val data = remoteMessage.data
         if (data.isEmpty()) return
+
+        // 0. Runtime Integrity Check (FAIL-CLOSED)
+        if (DeviceIntegrityManager.isDeviceCompromised(this)) {
+            Log.w(TAG, "Device compromised: Aborting alert processing")
+            return
+        }
 
         // 1. Fail-Closed Payload Extraction
         val eventId = data["eventId"]

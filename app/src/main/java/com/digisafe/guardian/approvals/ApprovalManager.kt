@@ -1,7 +1,9 @@
 package com.digisafe.guardian.approvals
 
+import android.content.Context
 import android.util.Log
 import com.digisafe.guardian.backend.FirebaseManager
+import com.digisafe.guardian.security.DeviceIntegrityManager
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
@@ -24,6 +26,10 @@ enum class ApprovalState {
 /**
  * ApprovalManager: Orchestrates the secure transaction approval lifecycle.
  * Ensures fraud-safe state transitions and resilient terminal-state handling.
+ * 
+ * SECURITY ENFORCEMENT:
+ * - Device Integrity: Operations are blocked on tampered/rooted devices.
+ * - Fail-Closed: Compromised state forces DENIED state for high-risk actions.
  */
 object ApprovalManager {
 
@@ -36,31 +42,19 @@ object ApprovalManager {
     private val terminalGuards = ConcurrentHashMap<String, AtomicBoolean>()
 
     /**
-     * STATE TRANSITION DIAGRAM (HARDENED):
-     * PENDING -> APPROVED (Guardian explicitly allowed)
-     * PENDING -> DENIED   (Guardian explicitly blocked)
-     * PENDING -> TIMEOUT  (No response within window)
-     * 
-     * [GUARDED] Any other transition (e.g., TIMEOUT -> APPROVED) is rejected by Firebase Transaction.
-     * [GUARDED] Terminal callbacks (Allowed/Blocked) fire exactly once per event.
-     */
-
-    /**
-     * Interface for observing approval results.
-     */
-    interface ApprovalCallback {
-        fun onStateChanged(state: ApprovalState)
-        fun onTransactionAllowed()
-        fun onTransactionBlocked()
-    }
-
-    /**
      * 1. INITIATE APPROVAL
      * Called when a user attempts a transaction during/after a HIGH-RISK event.
      */
-    fun initiateApproval(userId: String, eventId: String, callback: ApprovalCallback) {
-        Log.d(TAG, "Initiating approval for Event: $eventId")
+    fun initiateApproval(context: Context, userId: String, eventId: String, callback: ApprovalCallback) {
+        Log.d(TAG, "Initiating approval cycle")
         
+        // Runtime Integrity Check
+        if (DeviceIntegrityManager.isDeviceCompromised(context)) {
+            Log.w(TAG, "Integrity check failed: Aborting approval initiation")
+            callback.onTransactionBlocked()
+            return
+        }
+
         // Initialize terminal guard
         terminalGuards[eventId] = AtomicBoolean(false)
 
@@ -74,22 +68,30 @@ object ApprovalManager {
     /**
      * 2. STATE TRANSITION LOGIC (SECURE)
      * VALIDATION: Only allow transitions from PENDING to a terminal state.
-     * PREVENTS: Backward transitions or double-approvals.
+     * INTEGRITY: Block approval if the runtime is compromised.
      */
-    private fun handleStateTransition(
+    fun handleStateTransition(
+        context: Context,
         userId: String, 
         eventId: String, 
         newState: ApprovalState, 
         callback: ApprovalCallback
     ) {
         scope.launch {
-            Log.d(TAG, "Attempting transition for $eventId to $newState")
-            
-            val success = FirebaseManager.updateApprovalStateAtomic(userId, eventId, newState.name)
-            if (success) {
-                notifyTerminalState(eventId, newState, callback)
+            // SECURITY: Fail-closed on compromised hardware
+            val targetState = if (newState == ApprovalState.APPROVED && 
+                DeviceIntegrityManager.isDeviceCompromised(context)) {
+                Log.w(TAG, "Device compromised: Forcing DENIED state")
+                ApprovalState.DENIED
             } else {
-                Log.w(TAG, "Transition to $newState failed for $eventId (Possible race or already terminal)")
+                newState
+            }
+
+            val success = FirebaseManager.updateApprovalStateAtomic(userId, eventId, targetState.name)
+            if (success) {
+                notifyTerminalState(eventId, targetState, callback)
+            } else {
+                Log.w(TAG, "Transition failed: Result consistency maintained")
             }
         }
     }
