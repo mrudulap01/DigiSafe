@@ -8,6 +8,7 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * ApprovalState: Deterministic states for the Digisafe approval process.
@@ -32,6 +33,17 @@ object ApprovalManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val activeListeners = ConcurrentHashMap<String, ValueEventListener>()
     private val timeoutJobs = ConcurrentHashMap<String, Job>()
+    private val terminalGuards = ConcurrentHashMap<String, AtomicBoolean>()
+
+    /**
+     * STATE TRANSITION DIAGRAM (HARDENED):
+     * PENDING -> APPROVED (Guardian explicitly allowed)
+     * PENDING -> DENIED   (Guardian explicitly blocked)
+     * PENDING -> TIMEOUT  (No response within window)
+     * 
+     * [GUARDED] Any other transition (e.g., TIMEOUT -> APPROVED) is rejected by Firebase Transaction.
+     * [GUARDED] Terminal callbacks (Allowed/Blocked) fire exactly once per event.
+     */
 
     /**
      * Interface for observing approval results.
@@ -49,11 +61,14 @@ object ApprovalManager {
     fun initiateApproval(userId: String, eventId: String, callback: ApprovalCallback) {
         Log.d(TAG, "Initiating approval for Event: $eventId")
         
+        // Initialize terminal guard
+        terminalGuards[eventId] = AtomicBoolean(false)
+
         // 1. Setup Firebase Listener
         observeApproval(userId, eventId, callback)
 
         // 2. Start Timeout Timer
-        startTimeoutTimer(userId, eventId)
+        startTimeoutTimer(userId, eventId, callback)
     }
 
     /**
@@ -68,17 +83,13 @@ object ApprovalManager {
         callback: ApprovalCallback
     ) {
         scope.launch {
-            Log.d(TAG, "Transitioning $eventId to $newState")
+            Log.d(TAG, "Attempting transition for $eventId to $newState")
             
-            val success = FirebaseManager.updateApprovalState(userId, eventId, newState.name)
+            val success = FirebaseManager.updateApprovalStateAtomic(userId, eventId, newState.name)
             if (success) {
-                cleanup(eventId)
-                callback.onStateChanged(newState)
-                
-                when (newState) {
-                    ApprovalState.APPROVED -> callback.onTransactionAllowed()
-                    else -> callback.onTransactionBlocked()
-                }
+                notifyTerminalState(eventId, newState, callback)
+            } else {
+                Log.w(TAG, "Transition to $newState failed for $eventId (Possible race or already terminal)")
             }
         }
     }
@@ -97,15 +108,12 @@ object ApprovalManager {
 
                 // SECURITY: Only process server confirmations for non-PENDING states
                 if (state != ApprovalState.PENDING) {
-                    cleanup(eventId)
-                    callback.onStateChanged(state)
-                    if (state == ApprovalState.APPROVED) callback.onTransactionAllowed() 
-                    else callback.onTransactionBlocked()
+                    notifyTerminalState(eventId, state, callback)
                 }
             }
 
             override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "Firebase Listener Error: ${error.message}")
+                Log.e(TAG, "Firebase Listener Error for $eventId: ${error.message}")
             }
         }
 
@@ -114,18 +122,42 @@ object ApprovalManager {
     }
 
     /**
+     * Ensures callbacks are fired only once and cleans up resources.
+     */
+    private fun notifyTerminalState(eventId: String, state: ApprovalState, callback: ApprovalCallback) {
+        val guard = terminalGuards[eventId] ?: return
+        
+        if (guard.compareAndSet(false, true)) {
+            Log.i(TAG, "Event $eventId reached terminal state: $state. Triggering callbacks.")
+            cleanup(eventId)
+            callback.onStateChanged(state)
+            if (state == ApprovalState.APPROVED) {
+                callback.onTransactionAllowed()
+            } else {
+                callback.onTransactionBlocked()
+            }
+        } else {
+            Log.d(TAG, "Duplicate terminal processing suppressed for $eventId (Current: $state)")
+        }
+    }
+
+    /**
      * 4. TIMEOUT IMPLEMENTATION
      * Deterministic 30-second window using Coroutines.
      */
-    private fun startTimeoutTimer(userId: String, eventId: String) {
+    private fun startTimeoutTimer(userId: String, eventId: String, callback: ApprovalCallback) {
         val job = scope.launch {
             delay(APPROVAL_TIMEOUT_MS)
             
-            // If job still active, it means no response received
-            Log.w(TAG, "Approval Timeout for event: $eventId")
-            
-            // Re-fetch current state to be absolutely sure
-            FirebaseManager.updateApprovalState(userId, eventId, ApprovalState.TIMEOUT.name)
+            // Re-check guard before even attempting network call
+            val guard = terminalGuards[eventId]
+            if (guard != null && !guard.get()) {
+                Log.w(TAG, "Approval Timeout triggered for event: $eventId")
+                val success = FirebaseManager.updateApprovalStateAtomic(userId, eventId, ApprovalState.TIMEOUT.name)
+                if (success) {
+                    notifyTerminalState(eventId, ApprovalState.TIMEOUT, callback)
+                }
+            }
         }
         timeoutJobs[eventId] = job
     }
@@ -142,9 +174,9 @@ object ApprovalManager {
         // Cancel timer
         timeoutJobs[eventId]?.cancel()
         timeoutJobs.remove(eventId)
-
-        // Remove listener logic would require userId, assuming listeners are managed properly
-        // In a production app, we'd store the DatabaseReference along with the listener
+        
+        // Note: Terminal guard is kept until explicit removal to prevent re-triggering logic
+        // but could be pruned after a certain TTL in production.
     }
 
     /**

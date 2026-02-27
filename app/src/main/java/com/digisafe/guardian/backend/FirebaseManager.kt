@@ -3,8 +3,15 @@ package com.digisafe.guardian.backend
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
+import com.google.firebase.database.Transaction
+import com.google.firebase.database.MutableData
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import android.util.Log
 
 /**
@@ -108,12 +115,78 @@ object FirebaseManager {
     }
 
     /**
-     * Updates the approval state based on Guardian response or timeout.
+     * Updates the approval state atomically using a transaction.
+     * Enforces that only PENDING states can transition to terminal states.
+     * 
+     * TRANSITION DIAGRAM:
+     * PENDING -> APPROVED
+     * PENDING -> DENIED
+     * PENDING -> TIMEOUT
+     * [ANY] -> ABORT (if not PENDING)
+     */
+    suspend fun updateApprovalStateAtomic(
+        userId: String,
+        eventId: String,
+        newState: String
+    ): Boolean = suspendCancellableCoroutine { continuation ->
+        val ref = getBaseRef().child("users/$userId/approvals/$eventId")
+        val auth = FirebaseAuth.getInstance()
+        
+        ref.runTransaction(object : Transaction.Handler {
+            override fun doTransaction(mutableData: MutableData): Transaction.Result {
+                // 1. Target State Validation: Allow only high-integrity terminal states
+                val allowedStates = listOf("APPROVED", "DENIED", "TIMEOUT")
+                if (newState !in allowedStates) {
+                    Log.e(TAG, "Transaction ABORTED for $eventId: Invalid target state $newState")
+                    return Transaction.abort()
+                }
+
+                val currentData = mutableData.value as? Map<String, Any> 
+                
+                // 2. Malformed Node Check: Node must exist to transition away from PENDING
+                if (currentData == null) {
+                    Log.e(TAG, "Transaction ABORTED for $eventId: Node is null/missing")
+                    return Transaction.abort()
+                }
+
+                val currentState = currentData["state"] as? String
+                if (currentState == null) {
+                    Log.e(TAG, "Transaction ABORTED for $eventId: State field is missing in node")
+                    return Transaction.abort()
+                }
+
+                // 3. Strict Transition Check: Only allow transitions from PENDING to terminal states
+                if (currentState != "PENDING") {
+                    Log.w(TAG, "Transaction ABORTED for $eventId: Current state is $currentState (Attempted: $newState)")
+                    return Transaction.abort()
+                }
+
+                val updates = currentData.toMutableMap().apply {
+                    put("state", newState)
+                    put("resolvedAt", ServerValue.TIMESTAMP)
+                    put("resolvedBy", auth.currentUser?.uid ?: "system_timeout")
+                }
+
+                mutableData.value = updates
+                return Transaction.success(mutableData)
+            }
+
+            override fun onComplete(error: DatabaseError?, committed: Boolean, snapshot: DataSnapshot?) {
+                if (error != null) {
+                    Log.e(TAG, "Transactional update failed for $eventId: ${error.message}")
+                    continuation.resume(false)
+                } else {
+                    continuation.resume(committed)
+                }
+            }
+        })
+    }
+
+    /**
+     * Legacy wrapper - Deprecated in favor of updateApprovalStateAtomic
      */
     suspend fun updateApprovalState(userId: String, eventId: String, newState: String): Boolean {
-        val path = "users/$userId/approvals/$eventId/state"
-        val updates = mapOf(path to newState)
-        return updateAtomic(updates)
+        return updateApprovalStateAtomic(userId, eventId, newState)
     }
 
     /**
