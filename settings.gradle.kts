@@ -16,3 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "DigiSafe"
 include(":app")
+include(":app")
+ 
