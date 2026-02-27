@@ -40,8 +40,8 @@ class EmotionEngine(private val context: Context, private val mfccProcessor: MFC
             return score
         } catch (e: Exception) {
             e.printStackTrace()
-            // Fallback random mock value if inference fails (e.g., model is missing)
-            return 0.5f 
+            // Fallback value if inference fails (e.g., model is missing, bad input)
+            return 0.1f
         }
     }
 
