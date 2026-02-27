@@ -5,13 +5,13 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.Color
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
-import com.digisafe.guardian.R
 import com.digisafe.guardian.backend.FirebaseManager
 import com.digisafe.guardian.dashboard.GuardianDashboardActivity
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -20,30 +20,46 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
- * AlertService: Production-grade FCM listener for DIGISAFE.
- * Responsible for high-priority alert delivery, replay protection, and device binding.
+ * AlertService: Production-grade FCM listener with Persistent Replay Protection.
+ * 
+ * SECURITY DESIGN (HARDENED):
+ * 1. Persistent De-duplication: Prevents alert replay even after app restarts/device reboots.
+ * 2. Hardware-Backed Cache: Replay IDs are stored in EncryptedSharedPreferences (TEE-backed keys).
+ * 3. Temporal Freshness: Rejects any event older than 5 minutes to prevent late injection.
+ * 4. Signature Readiness: Architecture supports future ECDSA payload verification.
  */
 class AlertService : FirebaseMessagingService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val processedEvents = mutableSetOf<String>() // Simple in-memory de-duplication
+    
+    // Thread-safe lazy initialization of EncryptedSharedPreferences
+    private val replayPrefs: SharedPreferences by lazy {
+        val masterKey = MasterKey.Builder(applicationContext)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+
+        EncryptedSharedPreferences.create(
+            applicationContext,
+            "digiSafe_replay_cache",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
 
     companion object {
         private const val TAG = "AlertService"
         private const val CHANNEL_HIGH_RISK = "high_risk_alerts"
-        private const val REPLAY_WINDOW_MS = 300_000L // 5 minutes
+        private const val FRESHNESS_WINDOW_MS = 300_000L // 5 minutes
+        private const val FUTURE_TOLERANCE_MS = 60_000L   // 1 minute
+        private const val CLEANUP_THRESHOLD_MS = 86_400_000L // 24 hours
     }
 
-    /**
-     * Called when a new FCM token is generated.
-     * Binding the token to the user ID is critical for targeted alert routing.
-     */
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.d(TAG, "New token generated: $token")
-        
         serviceScope.launch {
             val userId = getEncryptedUserId()
             if (userId != null) {
@@ -53,47 +69,125 @@ class AlertService : FirebaseMessagingService() {
     }
 
     /**
-     * Primary entry point for incoming high-risk alert payloads.
-     * We ONLY use data payloads to ensure the app can process the notification 
-     * even when killed or in the background.
+     * Entry point for high-integrity alert payloads.
      */
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         val data = remoteMessage.data
         if (data.isEmpty()) return
 
-        val eventId = data["eventId"] ?: return
-        val riskLevel = data["riskLevel"] ?: "UNKNOWN"
-        val timestamp = data["timestamp"]?.toLongOrNull() ?: 0L
+        // 1. Fail-Closed Payload Extraction
+        val eventId = data["eventId"]
+        val timestamp = data["timestamp"]?.toLongOrNull()
+        val signature = data["signature"]
+        val riskLevel = data["riskLevel"]
 
-        // 1. Replay Protection: Ignore duplicate or stale events
-        if (isReplay(eventId, timestamp)) {
-            Log.w(TAG, "Replay attempt detected for event: $eventId")
+        if (eventId.isNullOrBlank() || timestamp == null) {
+            Log.w(TAG, "Invalid payload: Dropping malformed message")
             return
         }
 
-        // 2. Security: Validate risk level to prevent spoofing noise
+        // 2. Timestamp Freshness Window (Fail-Closed)
+        if (!isTimestampFresh(timestamp)) {
+            Log.w(TAG, "Stale event rejected")
+            return
+        }
+
+        // 3. Persistent Replay Detection (Atomic Check-and-Write)
+        if (!tryMarkEventProcessed(eventId, timestamp)) {
+            Log.w(TAG, "Replay detected")
+            return
+        }
+
+        // 4. Cryptographic Signature Stub
+        if (!validateSignature(eventId, timestamp, signature)) {
+            Log.w(TAG, "Signature validation failed")
+            return
+        }
+
+        // 5. Spoofing Protection (Logic Consistency)
         if (riskLevel != "HIGH") {
-            Log.d(TAG, "Low risk event received, skipping high-priority alert.")
             return
         }
 
-        // 3. Process Alert
-        processedEvents.add(eventId)
+        // 6. Cleanup Background Tasks
+        cleanupExpiredEvents()
+
+        // 7. Deliver Notification
         showHighRiskNotification(data)
     }
 
+    private fun isTimestampFresh(eventTimestamp: Long): Boolean {
+        val now = System.currentTimeMillis()
+        val drift = now - eventTimestamp
+        
+        // Reject if event is too old or too far in the future
+        return drift in (-FUTURE_TOLERANCE_MS)..FRESHNESS_WINDOW_MS
+    }
+
     /**
-     * Builds and displays a HIGH priority notification.
-     * Includes red accent, custom vibration, and deep link to dashboard.
+     * Atomically checks if an event has been processed and marks it as such.
+     * Thread-safe to prevent race conditions during rapid message bursts.
      */
+    @Synchronized
+    private fun tryMarkEventProcessed(eventId: String, timestamp: Long): Boolean {
+        return try {
+            val key = "event_$eventId"
+            if (replayPrefs.contains(key)) {
+                false // Replay detected
+            } else {
+                replayPrefs.edit()
+                    .putLong(key, timestamp)
+                    .apply()
+                true // Successfully marked as processed
+            }
+        } catch (e: Exception) {
+            // If prefs are corrupted, fail-closed: assume replay
+            false
+        }
+    }
+
+    /**
+     * Asynchronous, lightweight cleanup of entries older than 24 hours.
+     */
+    private fun cleanupExpiredEvents() {
+        serviceScope.launch {
+            try {
+                val now = System.currentTimeMillis()
+                val editor = replayPrefs.edit()
+                var cleaned = false
+
+                replayPrefs.all.forEach { (key, value) ->
+                    if (key.startsWith("event_") && value is Long) {
+                        if (now - value > CLEANUP_THRESHOLD_MS) {
+                            editor.remove(key)
+                            cleaned = true
+                        }
+                    }
+                }
+
+                if (cleaned) editor.apply()
+            } catch (e: Exception) {
+                // Silently handle pref corruption or concurrency issues
+            }
+        }
+    }
+
+    /**
+     * ECDSA Signature Verification Stub.
+     * TODO: Implement ECDSA signature verification using embedded public key.
+     */
+    private fun validateSignature(eventId: String, timestamp: Long, signature: String?): Boolean {
+        // Return true to allow current flow; future updates will enforce real verification.
+        return true
+    }
+
     private fun showHighRiskNotification(data: Map<String, String>) {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel(notificationManager)
 
-        val callerNumber = data["callerNumber"] ?: "Unknown Number"
+        val callerNumber = data["callerNumber"] ?: "Unknown"
         val eventId = data["eventId"] ?: ""
 
-        // Deep Link Intent
         val intent = Intent(this, GuardianDashboardActivity::class.java).apply {
             putExtra("EVENT_ID", eventId)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -127,34 +221,22 @@ class AlertService : FirebaseMessagingService() {
                 "High Risk Alerts",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Critical alerts for senior citizen fraud detection"
                 enableLights(true)
                 lightColor = Color.RED
                 enableVibration(true)
-                lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
             }
             manager.createNotificationChannel(channel)
         }
     }
 
-    /**
-     * Determines if the event is a replay or stale.
-     * SECURITY: Replay window prevents old notifications from being re-triggered.
-     */
-    private fun isReplay(eventId: String, timestamp: Long): Boolean {
-        if (processedEvents.contains(eventId)) return true
-        val now = System.currentTimeMillis()
-        return (now - timestamp) > REPLAY_WINDOW_MS
-    }
-
     private fun getEncryptedUserId(): String? {
         return try {
-            val masterKey = MasterKey.Builder(this)
+            val masterKey = MasterKey.Builder(applicationContext)
                 .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
                 .build()
 
             val prefs = EncryptedSharedPreferences.create(
-                this,
+                applicationContext,
                 "secure_guardian_prefs",
                 masterKey,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
@@ -163,13 +245,6 @@ class AlertService : FirebaseMessagingService() {
             prefs.getString("internal_user_id", null)
         } catch (e: Exception) {
             null
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        serviceScope.launch {
-            // Cleanup old events from memory (if needed, but service should be short-lived)
         }
     }
 }
