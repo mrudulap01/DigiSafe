@@ -134,6 +134,15 @@ object FirebaseManager {
     }
 
     /**
+     * Update FCM token for device binding.
+     */
+    suspend fun updateFcmToken(uid: String, token: String): Result<Unit> {
+        return executeWithRetry {
+            rootRef.child("users/$uid/profile/fcmToken").setValue(token).await()
+        }
+    }
+
+    /**
      * EXPONENTIAL BACKOFF RETRY MECHANISM
      * Ensures critical cloud sync recovers from transient network failures.
      */
