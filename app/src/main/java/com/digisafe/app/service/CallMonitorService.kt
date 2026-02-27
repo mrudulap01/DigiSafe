@@ -3,7 +3,6 @@ package com.digisafe.app.service
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
-import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.database.Cursor
@@ -21,13 +20,22 @@ import com.digisafe.app.R
 import com.digisafe.app.core.HighRiskManager
 import com.digisafe.app.core.RiskEngine
 import com.digisafe.app.guardian.GuardianNotifier
+import com.digisafe.app.shield.TransactionLimitManager
 import com.digisafe.app.ui.MainActivity
 import com.digisafe.app.ui.OverlayManager
 
 /**
- * CallMonitorService - Foreground service that monitors phone call state.
- * Detects incoming calls, tracks duration, checks if caller is unknown,
- * and feeds data to the RiskEngine for scoring.
+ * CallMonitorService — Foreground service that monitors phone call state.
+ *
+ * Features:
+ * - Detects incoming/outgoing calls
+ * - Tracks call duration
+ * - Checks if caller is unknown (contacts lookup)
+ * - Periodically recalculates risk via RiskEngine
+ * - Triggers overlay + guardian alert on HIGH_RISK
+ * - Forced auto-termination escalation: if risk stays HIGH for
+ *   [ESCALATION_TIMEOUT_MS], automatically attempts call termination
+ * - Activates transaction limits during HIGH_RISK
  */
 class CallMonitorService : Service() {
 
@@ -35,15 +43,19 @@ class CallMonitorService : Service() {
     private var phoneStateListener: PhoneStateListener? = null
     private val handler = Handler(Looper.getMainLooper())
     private var riskUpdateRunnable: Runnable? = null
+    private var escalationRunnable: Runnable? = null
     private var overlayManager: OverlayManager? = null
     private var guardianNotifier: GuardianNotifier? = null
     private var hasShownOverlay = false
     private var hasSentGuardianAlert = false
+    private var hasEscalated = false
+    private var highRiskStartTime: Long = 0L
 
     companion object {
         private const val TAG = "CallMonitorService"
         private const val NOTIFICATION_ID = 1001
-        private const val RISK_UPDATE_INTERVAL_MS = 5000L // Re-evaluate risk every 5 seconds
+        private const val RISK_UPDATE_INTERVAL_MS = 5000L  // Re-evaluate risk every 5 seconds
+        private const val ESCALATION_TIMEOUT_MS = 3 * 60 * 1000L  // 3 minutes of continuous HIGH_RISK
 
         fun start(context: Context) {
             val intent = Intent(context, CallMonitorService::class.java)
@@ -78,8 +90,9 @@ class CallMonitorService : Service() {
         super.onDestroy()
         stopPhoneStateMonitoring()
         stopRiskUpdates()
+        stopEscalationTimer()
         HighRiskManager.removeStateChangeListener(riskStateListener)
-        overlayManager?.dismissOverlay()
+        overlayManager?.dismissAll()
     }
 
     @Suppress("DEPRECATION")
@@ -106,9 +119,9 @@ class CallMonitorService : Service() {
                         Log.d(TAG, "Call ended")
                         HighRiskManager.onCallEnded(this@CallMonitorService)
                         stopRiskUpdates()
-                        overlayManager?.dismissOverlay()
-                        hasShownOverlay = false
-                        hasSentGuardianAlert = false
+                        stopEscalationTimer()
+                        overlayManager?.dismissAll()
+                        resetFlags()
                         updateNotification("Monitoring calls for your safety")
                     }
                 }
@@ -143,6 +156,49 @@ class CallMonitorService : Service() {
     private fun stopRiskUpdates() {
         riskUpdateRunnable?.let { handler.removeCallbacks(it) }
         riskUpdateRunnable = null
+    }
+
+    /**
+     * Start the escalation timer when HIGH_RISK is first triggered.
+     * After [ESCALATION_TIMEOUT_MS], automatically attempt call termination.
+     */
+    private fun startEscalationTimer() {
+        if (escalationRunnable != null) return // Already running
+
+        highRiskStartTime = System.currentTimeMillis()
+        Log.d(TAG, "Escalation timer started — will auto-terminate in ${ESCALATION_TIMEOUT_MS / 1000}s")
+
+        escalationRunnable = Runnable {
+            if (HighRiskManager.riskLevel.value == RiskEngine.RiskLevel.HIGH_RISK &&
+                HighRiskManager.isCallActive.value == true &&
+                !hasEscalated
+            ) {
+                Log.w(TAG, "⚠️ ESCALATION: HIGH_RISK persisted for ${ESCALATION_TIMEOUT_MS / 1000}s — auto-terminating call")
+                hasEscalated = true
+
+                // Attempt auto call termination with fail-safe
+                CallTerminator.endCallWithFailSafe(this) {
+                    // Fail-safe: show maximum lock overlay
+                    overlayManager?.showLockOverlay()
+                }
+
+                updateNotification("🚨 ESCALATION — Call auto-terminated for your safety!")
+            }
+        }
+        handler.postDelayed(escalationRunnable!!, ESCALATION_TIMEOUT_MS)
+    }
+
+    private fun stopEscalationTimer() {
+        escalationRunnable?.let { handler.removeCallbacks(it) }
+        escalationRunnable = null
+        highRiskStartTime = 0L
+    }
+
+    private fun resetFlags() {
+        hasShownOverlay = false
+        hasSentGuardianAlert = false
+        hasEscalated = false
+        TransactionLimitManager.reset()
     }
 
     /**
@@ -199,12 +255,20 @@ class CallMonitorService : Service() {
                         HighRiskManager.incrementThreatsBlocked(this@CallMonitorService)
                     }
 
+                    // Activate transaction limits
+                    TransactionLimitManager.onHighRiskTriggered()
+                    TransactionLimitManager.activateTemporaryLimit(this@CallMonitorService)
+
+                    // Start escalation timer
+                    startEscalationTimer()
+
                     updateNotification("🚨 HIGH RISK — Possible scam detected!")
                 }
                 RiskEngine.RiskLevel.WARNING -> {
                     updateNotification("⚠️ WARNING — Suspicious call activity")
                 }
                 RiskEngine.RiskLevel.SAFE -> {
+                    stopEscalationTimer()
                     updateNotification("Monitoring calls for your safety")
                 }
             }

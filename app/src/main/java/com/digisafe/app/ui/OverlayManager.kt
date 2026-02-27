@@ -12,10 +12,12 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.Settings
 import android.util.Log
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
 import android.widget.CheckBox
+import android.widget.LinearLayout
 import android.widget.TextView
 import com.digisafe.app.R
 import com.digisafe.app.core.HighRiskManager
@@ -24,19 +26,22 @@ import com.digisafe.app.service.CallTerminator
 import com.google.android.material.button.MaterialButton
 
 /**
- * OverlayManager - Displays full-screen TYPE_APPLICATION_OVERLAY alert
+ * OverlayManager — Displays full-screen TYPE_APPLICATION_OVERLAY alerts
  * during high-risk situations.
  *
  * Features:
- * - Red warning screen with scam checklist
+ * - Red warning screen with scam reality checklist
  * - Disconnect Call / Call Guardian / I Am Safe buttons
  * - Panic button for emergency
+ * - Fail-safe lock overlay when call termination fails
+ * - Banking shield overlay for UPI/banking app protection
  * - Haptic feedback on display
  */
 class OverlayManager(private val context: Context) {
 
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var overlayView: View? = null
+    private var lockOverlayView: View? = null
     private val handler = Handler(Looper.getMainLooper())
 
     companion object {
@@ -115,6 +120,9 @@ class OverlayManager(private val context: Context) {
                     PixelFormat.TRANSLUCENT
                 )
 
+                // Make interactive for buttons
+                params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+
                 overlayView?.findViewById<MaterialButton>(R.id.btnBlockTransaction)
                     ?.setOnClickListener {
                         dismissOverlay()
@@ -136,7 +144,136 @@ class OverlayManager(private val context: Context) {
     }
 
     /**
-     * Dismiss the current overlay.
+     * Fail-safe lock overlay — shown when call termination fails.
+     * Covers the entire screen to prevent interaction with scam caller.
+     * Only dismissible via the "I Am Safe" button.
+     */
+    fun showLockOverlay() {
+        if (!Settings.canDrawOverlays(context)) return
+        if (lockOverlayView != null) return
+
+        handler.post {
+            try {
+                lockOverlayView = createLockOverlayView()
+
+                val params = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                    PixelFormat.TRANSLUCENT
+                )
+                // Interactive — but blocks everything behind
+                params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+
+                windowManager.addView(lockOverlayView, params)
+                vibrateAlert()
+
+                Log.d(TAG, "Fail-safe lock overlay shown")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to show lock overlay", e)
+            }
+        }
+    }
+
+    /**
+     * Build the lock overlay view programmatically (no XML needed).
+     */
+    private fun createLockOverlayView(): View {
+        val layout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(0xFFB00020.toInt()) // High risk red
+            setPadding(64, 64, 64, 64)
+        }
+
+        // Warning icon
+        val iconView = TextView(context).apply {
+            text = "🚨"
+            textSize = 72f
+            gravity = Gravity.CENTER
+        }
+        layout.addView(iconView)
+
+        // Title
+        val titleView = TextView(context).apply {
+            text = "CALL TERMINATION FAILED"
+            textSize = 28f
+            setTextColor(0xFFFFFFFF.toInt())
+            gravity = Gravity.CENTER
+            setPadding(0, 32, 0, 16)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        layout.addView(titleView)
+
+        // Message
+        val messageView = TextView(context).apply {
+            text = "We could not end the suspicious call.\n\n" +
+                    "Please hang up manually and do NOT share any personal information.\n\n" +
+                    "Do NOT transfer any money."
+            textSize = 20f
+            setTextColor(0xFFFFFFFF.toInt())
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, 48)
+            setLineSpacing(8f, 1f)
+        }
+        layout.addView(messageView)
+
+        // Call Guardian button
+        val guardianBtn = MaterialButton(context).apply {
+            text = "🟢 Call Guardian"
+            textSize = 20f
+            setTextColor(0xFFFFFFFF.toInt())
+            setBackgroundColor(0xFF1976D2.toInt())
+            minimumHeight = 160
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            lp.setMargins(0, 0, 0, 24)
+            layoutParams = lp
+
+            setOnClickListener {
+                val guardianPhone = GuardianManager.getGuardianPhone(context)
+                if (!guardianPhone.isNullOrBlank()) {
+                    val callIntent = Intent(Intent.ACTION_DIAL).apply {
+                        data = Uri.parse("tel:$guardianPhone")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(callIntent)
+                }
+            }
+        }
+        layout.addView(guardianBtn)
+
+        // I Am Safe button (dismiss lock)
+        val safeBtn = MaterialButton(context).apply {
+            text = "🟡 I Am Safe — Dismiss"
+            textSize = 20f
+            setTextColor(0xFFFFFFFF.toInt())
+            setBackgroundColor(0xFFFFA000.toInt())
+            minimumHeight = 160
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            layoutParams = lp
+
+            setOnClickListener {
+                dismissLockOverlay()
+                HighRiskManager.resetRisk()
+            }
+        }
+        layout.addView(safeBtn)
+
+        return layout
+    }
+
+    /**
+     * Dismiss the current main overlay.
      */
     fun dismissOverlay() {
         handler.post {
@@ -150,6 +287,31 @@ class OverlayManager(private val context: Context) {
                 Log.e(TAG, "Failed to dismiss overlay", e)
             }
         }
+    }
+
+    /**
+     * Dismiss the fail-safe lock overlay.
+     */
+    fun dismissLockOverlay() {
+        handler.post {
+            try {
+                lockOverlayView?.let {
+                    windowManager.removeView(it)
+                    lockOverlayView = null
+                    Log.d(TAG, "Lock overlay dismissed")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to dismiss lock overlay", e)
+            }
+        }
+    }
+
+    /**
+     * Dismiss all overlays.
+     */
+    fun dismissAll() {
+        dismissOverlay()
+        dismissLockOverlay()
     }
 
     private fun setupOverlayViews(
@@ -172,13 +334,14 @@ class OverlayManager(private val context: Context) {
         view.findViewById<TextView>(R.id.tvRiskScoreOverlay)?.text =
             String.format("Risk Score: %.0f%%", riskScore * 100)
 
-        // Disconnect button
+        // Disconnect button — with fail-safe
         view.findViewById<MaterialButton>(R.id.btnDisconnect)?.setOnClickListener {
-            val success = CallTerminator.endCall(context)
-            if (success) {
-                dismissOverlay()
-                HighRiskManager.resetRisk()
+            CallTerminator.endCallWithFailSafe(context) {
+                // Fail-safe: show lock overlay if termination fails
+                showLockOverlay()
             }
+            dismissOverlay()
+            HighRiskManager.resetRisk()
         }
 
         // Call Guardian button
@@ -199,9 +362,11 @@ class OverlayManager(private val context: Context) {
             HighRiskManager.resetRisk()
         }
 
-        // Panic button - immediately disconnect and alert guardian
+        // Panic button — disconnect + alert guardian
         view.findViewById<MaterialButton>(R.id.btnPanic)?.setOnClickListener {
-            CallTerminator.endCall(context)
+            CallTerminator.endCallWithFailSafe(context) {
+                showLockOverlay()
+            }
             dismissOverlay()
             HighRiskManager.resetRisk()
         }
