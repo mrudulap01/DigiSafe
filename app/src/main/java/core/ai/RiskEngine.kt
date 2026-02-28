@@ -23,7 +23,7 @@ class RiskEngine {
                     (0.4 * authorityScore)
 
         val level = when {
-            riskScore > 70 -> "HIGH"
+            riskScore > 65 -> "HIGH"
             riskScore > 40 -> "MEDIUM"
             else -> "LOW"
         }

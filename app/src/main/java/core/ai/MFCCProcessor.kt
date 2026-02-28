@@ -10,7 +10,7 @@ class MFCCProcessor {
             FloatArray(40) { 0.5f }
         } catch (e: Exception) {
             Log.e("DigiSafe-AI", "MFCC processing failed", e)
-            FloatArray(40) { 0.0f }
+            FloatArray(0)
         }
     }
 }

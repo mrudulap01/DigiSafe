@@ -10,14 +10,15 @@ import java.nio.channels.FileChannel
 
 class EmotionEngine(private val context: Context) {
 
-    private lateinit var interpreter: Interpreter
+// private lateinit var interpreter: Interpreter
 
     init {
         try {
             // Load the model once during initialization
-            val modelBuffer = loadModelFile()
-            interpreter = Interpreter(modelBuffer)
-            Log.d("EmotionEngine", "TFLite model loaded successfully")
+            // Disable TFLite model loading for development mode
+            // val modelBuffer = loadModelFile()
+            // interpreter = Interpreter(modelBuffer)
+            Log.d("EmotionEngine", "TFLite model loading bypassed for development")
         } catch (e: Exception) {
             Log.e("DigiSafe-AI", "TFLite model loading failed", e)
         }
@@ -34,13 +35,8 @@ class EmotionEngine(private val context: Context) {
 
     fun analyzeAudio(mfcc: FloatArray): Float {
         return try {
-            val input = arrayOf(mfcc)
-            val output = Array(1) { FloatArray(1) }
-
-            interpreter.run(input, output)
-
-            val score = output[0][0]
-            Log.d("DigiSafe-AI", "Emotion Score: $score")
+            val score = (0.5f + Math.random() * 0.4).toFloat()
+            Log.d("DigiSafe-AI", "Development mode emotion score used: $score")
             score
 
         } catch (e: Exception) {
