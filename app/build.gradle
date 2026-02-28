@@ -37,6 +37,10 @@ android {
 }
 
 dependencies {
+    implementation("org.tensorflow:tensorflow-lite:2.14.0") {
+        exclude group: "org.tensorflow", module: "tensorflow-lite-api"
+    }
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation libs.androidx.core.ktx
     implementation libs.androidx.lifecycle.runtime.ktx
