@@ -6,7 +6,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
 
-    <application>
+    <application
+        android:theme="@style/Theme.DigiSafeCore">
         <service
             android:name="com.digisafe.core.system.CallMonitorService"
             android:exported="false"

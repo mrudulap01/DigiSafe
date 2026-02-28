@@ -108,6 +108,25 @@ class CallMonitorService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Service Started")
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                "digisafe_channel",
+                "DigiSafe Monitoring",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+
+        val notification = NotificationCompat.Builder(this, "digisafe_channel")
+            .setContentTitle("DigiSafe Active")
+            .setContentText("Monitoring Calls")
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setOngoing(true)
+            .build()
+
+        startForeground(1, notification)
+
         if (DEBUG_MODE) {
             Log.d(TAG, "DEBUG_MODE enabled: Starting test recording...")
             handler.post {

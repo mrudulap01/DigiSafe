@@ -5,8 +5,11 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import android.content.Intent
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.digisafe.core.system.CallMonitorService
 
 class MainActivity : AppCompatActivity() {
 
@@ -21,6 +24,10 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // setContentView(R.layout.activity_main)
+
+        val intent = Intent(this, CallMonitorService::class.java)
+        startService(intent)
+        Log.d("MainActivity", "Service Started from MainActivity")
 
         checkAndRequestPermissions()
     }
