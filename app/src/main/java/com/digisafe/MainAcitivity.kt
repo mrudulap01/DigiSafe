@@ -11,7 +11,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val aiTest = AiEngineTest()
+        val aiTest = AiEngineTest() //for testing ai
         aiTest.runTest(this)
 
         val emotionEngine = EmotionEngine(this)

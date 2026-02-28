@@ -1,4 +1,4 @@
-package core.ai
+/*package core.ai
 
 import android.content.Context
 import android.util.Log
@@ -29,3 +29,4 @@ class AiEngineTest {
         Log.d("DigiSafe-AI-Test", "AI Engine Test Completed.")
     }
 }
+*/
