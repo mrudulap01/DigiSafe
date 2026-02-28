@@ -1,9 +1,12 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.digisafe.core">
 
     <!-- Required permissions -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.READ_CALL_LOG"/>
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS"/>
+    <uses-permission android:name="android.permission.SEND_SMS"/>
 
     <!-- Foreground service permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
@@ -15,6 +18,7 @@
         android:label="DigiSafeCore"
         android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
 
+        <!-- Main Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -25,6 +29,11 @@
             </intent-filter>
 
         </activity>
+
+        <!-- ✅ HIGH RISK ALERT ACTIVITY (FIX ADDED HERE) -->
+        <activity
+            android:name="com.digisafe.core.ui.HighRiskActivity"
+            android:exported="false" />
 
         <!-- Foreground Service -->
         <service
