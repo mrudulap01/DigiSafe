@@ -19,6 +19,10 @@ class AiCoordinator(
         phoneNumber: String,
         transcript: String?
     ) {
+        if (filePath.isEmpty() || !java.io.File(filePath).exists()) {
+            Log.w("DigiSafe-AI", "File path is empty or file does not exist: $filePath")
+            return
+        }
 
         val mfcc = mfccProcessor.processAudio(filePath)
         val emotionScore = emotionEngine.analyzeAudio(mfcc)
