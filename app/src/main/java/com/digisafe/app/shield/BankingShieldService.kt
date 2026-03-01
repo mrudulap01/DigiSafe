@@ -72,6 +72,15 @@ class BankingShieldService : AccessibilityService() {
             "fund transfer"
         )
 
+        private val TRANSACTION_ATTEMPT_KEYWORDS = listOf(
+            "pay now",
+            "confirm payment",
+            "proceed to pay",
+            "enter upi pin",
+            "enter pin",
+            "confirm"
+        )
+
         // Track service instance
         var instance: BankingShieldService? = null
             private set
@@ -185,6 +194,17 @@ class BankingShieldService : AccessibilityService() {
 
                 // Notify TransactionLimitManager
                 TransactionLimitManager.onTransactionKeywordDetected()
+                HighRiskManager.onSuspiciousPhraseDetected()
+                val inferredProbability = (detectedKeywords.size / 5f).coerceIn(0f, 1f)
+                HighRiskManager.updateKeywordProbability(inferredProbability)
+
+                val hasAttemptKeyword = detectedKeywords.any { keyword ->
+                    TRANSACTION_ATTEMPT_KEYWORDS.contains(keyword)
+                }
+                if (hasAttemptKeyword) {
+                    TransactionLimitManager.onTransactionAttemptDetected()
+                    HighRiskManager.onTransactionAttemptDetected()
+                }
 
                 // Show shield if risk is HIGH and not already shown
                 if (currentRisk == RiskEngine.RiskLevel.HIGH_RISK && !hasShownShieldForSession) {

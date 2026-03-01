@@ -16,9 +16,6 @@ object HighRiskManager {
 
     private const val TAG = "HighRiskManager"
     private const val PREFS_NAME = "digisafe_state"
-    private const val KEY_ACTIVE_CALL = "active_call"
-    private const val KEY_CALLER_NUMBER = "caller_number"
-    private const val KEY_CALL_START_TIME = "call_start_time"
     private const val KEY_CALLS_MONITORED = "calls_monitored"
     private const val KEY_THREATS_BLOCKED = "threats_blocked"
 
@@ -42,11 +39,13 @@ object HighRiskManager {
     private val _isBankingAppOpen = MutableLiveData(false)
     val isBankingAppOpen: LiveData<Boolean> = _isBankingAppOpen
 
-    // Risk engine instance
     private val riskEngine = RiskEngine()
 
-    // Keyword probability from AI layer
+    // Dynamic factors
     private var currentKeywordProbability = 0f
+    private var currentIsUnknownCaller = false
+    private var suspiciousPhraseHits = 0
+    private var transactionAttemptDetected = false
 
     // Listeners for state changes
     private val stateChangeListeners = mutableListOf<OnRiskStateChangeListener>()
@@ -73,6 +72,10 @@ object HighRiskManager {
      */
     fun onCallStarted(phoneNumber: String?, isUnknown: Boolean) {
         Log.d(TAG, "Call started: $phoneNumber, unknown=$isUnknown")
+        currentIsUnknownCaller = isUnknown
+        suspiciousPhraseHits = 0
+        transactionAttemptDetected = false
+        currentKeywordProbability = 0f
         _isCallActive.postValue(true)
         _callerNumber.postValue(phoneNumber)
         _callStartTime.postValue(System.currentTimeMillis())
@@ -87,7 +90,6 @@ object HighRiskManager {
         _isCallActive.postValue(false)
         resetRisk()
 
-        // Increment calls monitored
         val prefs = getPrefs(context)
         val count = prefs.getInt(KEY_CALLS_MONITORED, 0)
         prefs.edit().putInt(KEY_CALLS_MONITORED, count + 1).apply()
@@ -108,38 +110,59 @@ object HighRiskManager {
      * Update keyword detection probability from AI layer.
      */
     fun updateKeywordProbability(probability: Float) {
-        currentKeywordProbability = probability
+        currentKeywordProbability = probability.coerceIn(0f, 1f)
         if (_isCallActive.value == true) {
             recalculateRisk()
         }
     }
 
     /**
+     * Escalate keyword probability when suspicious phrases continue.
+     */
+    fun onSuspiciousPhraseDetected() {
+        suspiciousPhraseHits += 1
+        val phraseScore = (suspiciousPhraseHits * 0.2f).coerceIn(0f, 1f)
+        if (phraseScore > currentKeywordProbability) {
+            currentKeywordProbability = phraseScore
+        }
+        if (_isCallActive.value == true) {
+            recalculateRisk()
+        }
+    }
+
+    fun getSuspiciousPhraseHits(): Int = suspiciousPhraseHits
+
+    fun onTransactionAttemptDetected() {
+        transactionAttemptDetected = true
+    }
+
+    fun hasTransactionAttemptDetected(): Boolean = transactionAttemptDetected
+
+    /**
      * Recalculate risk score based on current factors.
      */
     fun recalculateRisk() {
-        val durationSecs = if (_callStartTime.value != null && _callStartTime.value!! > 0) {
-            (System.currentTimeMillis() - _callStartTime.value!!) / 1000
+        val durationSecs = if ((_callStartTime.value ?: 0L) > 0L) {
+            (System.currentTimeMillis() - (_callStartTime.value ?: 0L)) / 1000
         } else {
             0L
         }
 
         val factors = RiskEngine.RiskFactors(
             keywordProbability = currentKeywordProbability,
-            isUnknownCaller = true, // Default for prototype — contacts check in CallMonitorService
+            isUnknownCaller = currentIsUnknownCaller,
             callDurationSeconds = durationSecs,
             isBankingAppOpen = _isBankingAppOpen.value ?: false
         )
 
         val result = riskEngine.calculateRisk(factors)
-
         val previousLevel = _riskLevel.value
+
         _riskScore.postValue(result.score)
         _riskLevel.postValue(result.level)
 
         Log.d(TAG, "Risk recalculated: score=${result.score}, level=${result.level}")
 
-        // Notify listeners if level changed
         if (result.level != previousLevel) {
             notifyListeners(result.level, result.score, _callerNumber.value, durationSecs)
         }
@@ -153,6 +176,9 @@ object HighRiskManager {
         _riskScore.postValue(0f)
         _isBankingAppOpen.postValue(false)
         currentKeywordProbability = 0f
+        currentIsUnknownCaller = false
+        suspiciousPhraseHits = 0
+        transactionAttemptDetected = false
         notifyListeners(RiskEngine.RiskLevel.SAFE, 0f, null, 0)
     }
 

@@ -38,6 +38,7 @@ object TransactionLimitManager {
 
     // Whether transaction keywords were detected on screen
     private var transactionKeywordDetected: Boolean = false
+    private var transactionAttemptDetected: Boolean = false
 
     /**
      * Initialize with context for SharedPreferences access.
@@ -78,6 +79,16 @@ object TransactionLimitManager {
     }
 
     /**
+     * Called when a transaction attempt action is detected.
+     */
+    fun onTransactionAttemptDetected() {
+        transactionAttemptDetected = true
+        Log.w(TAG, "Transaction attempt detected during risky call")
+    }
+
+    fun hasTransactionAttemptDetected(): Boolean = transactionAttemptDetected
+
+    /**
      * Determine if the current transaction should be blocked.
      */
     fun shouldBlockTransaction(): Boolean {
@@ -100,10 +111,11 @@ object TransactionLimitManager {
         // 2. Transaction keywords detected during risk
         val keywordBlock = transactionKeywordDetected && currentRisk == RiskEngine.RiskLevel.HIGH_RISK
 
-        val shouldBlock = timeBasedBlock || keywordBlock
+        val attemptBlock = transactionAttemptDetected
+        val shouldBlock = timeBasedBlock || keywordBlock || attemptBlock
 
         Log.d(TAG, "shouldBlockTransaction: $shouldBlock " +
-                "(timeBlock=$timeBasedBlock, keywordBlock=$keywordBlock)")
+                "(timeBlock=$timeBasedBlock, keywordBlock=$keywordBlock, attemptBlock=$attemptBlock)")
 
         return shouldBlock
     }
@@ -210,6 +222,7 @@ object TransactionLimitManager {
         lastBankingAppOpenTime = 0L
         highRiskTriggerTime = 0L
         transactionKeywordDetected = false
+        transactionAttemptDetected = false
         Log.d(TAG, "Transaction limit state reset")
     }
 
