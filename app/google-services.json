@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "695526660489",
+    "firebase_url": "https://digisafe-5949c-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "digisafe-5949c",
+    "storage_bucket": "digisafe-5949c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:695526660489:android:e1a527f72a0188c941e958",
+        "android_client_info": {
+          "package_name": "com.digisafe.guardian"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB7BUb8c1qaUVxug_MJ6WvKJgHp8CQfJBs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
